@@ -18,6 +18,31 @@
             </div>
         </div>
         <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Инструкция</h3>
+                    </div>
+                    <div class="panel-body">
+                        <h4>Внедрение текста в изображение</h4>
+                        <ul>
+                            <li>Нажав на кнопку "Выбирете файл" выберете bmp/png контейнер.</li>
+                            <li>В текстовом поле введите текст для внедрения.</li>
+                            <li>Нажмите на кнопку "Внедрить".</li>
+                            <li>Дождитесь загрузки изображения.</li>
+                        </ul>
+                        <br>
+                        <h4>Извлечения текста из изображения</h4>
+                        <ul>
+                            <li>Нажав на кнопку "Выбирете файл" выберете bmp/png контейнер с внедрённым текстом.</li>
+                            <li>Нажмите на кнопку "Внедрить".</li>
+                            <li>Дождитесь пока в текстовом поле не появится результат.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
             <div class="col-md-6 col-xs-12">
                 <div class="panel panel-default">
                     <div class="panel-heading">
@@ -60,20 +85,20 @@
             </div>
         </div>
     </div>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-    <script type="text/javascript">
-        var form = document.forms.extractForm;
-        form.addEventListener("submit", (e) => {
-            var formData = new FormData(form);
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/extract', true);
-            xhr.send(formData);
-            xhr.onload = function () {
-                form.elements.text.innerText = this.responseText;
-            }
-            e.preventDefault();
-        });
-    </script>
+            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+            <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+            <script type="text/javascript">
+                var form = document.forms.extractForm;
+                form.addEventListener("submit", (e) => {
+                    var formData = new FormData(form);
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/extract', true);
+                    xhr.send(formData);
+                    xhr.onload = function () {
+                        form.elements.text.innerText = this.responseText;
+                    }
+                    e.preventDefault();
+                });
+            </script>
 </body>
 </html>
