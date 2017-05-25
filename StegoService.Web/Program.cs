@@ -2,6 +2,8 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 using StegoService.Core.BitmapContainer;
 
@@ -49,41 +51,51 @@ namespace StegoService.Web
             {
                 res.Redirect("index.html");
             });
-            m_server.Post("/insert", (req, res) =>
+            m_server.Post("/insert", async (req, res) =>
             {
                 try
                 {
-                    var stream = req.GetBodyStream();
-                    var parser = new MultipartFormDataParser(stream);
-                    var file = parser.Files[0];
-                    string text = parser.Parameters[0].Data;
-                    var bitmap = new Bitmap(file.Data);
-                    var bitmapContainer = new BitmapContainer(bitmap);
-                    bitmapContainer.InsertStego(text);
                     string filename = GetUniqueName();
-                    bitmapContainer.Bitmap.Save(filename, ImageFormat.Png);
-                    res.Download(filename);
+                    var stream = req.GetBodyStream();
+                    Func<Task> tsk = async () =>
+                    {
+                        var parser = new MultipartFormDataParser(stream);
+                        var file = parser.Files[0];
+                        string text = parser.Parameters[0].Data;
+                        var bitmap = new Bitmap(file.Data);
+                        var bitmapContainer = new BitmapContainer(bitmap);
+                        bitmapContainer.InsertStego(text);
+                        bitmapContainer.Bitmap.Save(filename, ImageFormat.Png);
+                    };
+
+                    await tsk.Invoke();
+                    await res.Download(filename);
                 }
                 catch (Exception e)
                 {
-                    res.SendString(e.ToString());
+                    await res.SendString(e.ToString());
                 }
             });
-            m_server.Post("/extract", (req, res) =>
+            m_server.Post("/extract", async (req, res) =>
             {
                 try
                 {
+                    string text = String.Empty;
                     var stream = req.GetBodyStream();
-                    var parser = new MultipartFormDataParser(stream);
-                    var file = parser.Files[0];
-                    var bitmap = new Bitmap(file.Data);
-                    var bitmapContainer = new BitmapContainer(bitmap);
-                    string text = bitmapContainer.ExtractStego();
-                    res.SendString(text);
+                    Func<Task> tsk = async () =>
+                    {
+                        var parser = new MultipartFormDataParser(stream);
+                        var file = parser.Files[0];
+                        var bitmap = new Bitmap(file.Data);
+                        var bitmapContainer = new BitmapContainer(bitmap);
+                        text = bitmapContainer.ExtractStego();
+                    };
+                    await tsk.Invoke();
+                    await res.SendString(text);
                 }
                 catch (Exception e)
                 {
-                    res.SendString(e.ToString());
+                    await res.SendString(e.ToString());
                 }
             });
             m_server.Start();
