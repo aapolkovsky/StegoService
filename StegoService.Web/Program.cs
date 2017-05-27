@@ -57,18 +57,21 @@ namespace StegoService.Web
                 {
                     string filename = GetUniqueName();
                     var stream = req.GetBodyStream();
-                    Func<Task> tsk = async () =>
+                    await Task.Run(() =>
                     {
                         var parser = new MultipartFormDataParser(stream);
                         var file = parser.Files[0];
                         string text = parser.Parameters[0].Data;
+                        bool noise = parser.Parameters[1].Data == "yes";
                         var bitmap = new Bitmap(file.Data);
                         var bitmapContainer = new BitmapContainer(bitmap);
-                        bitmapContainer.InsertStego(text);
+                        bitmapContainer.EmbedStego(text);
+                        if (noise)
+                        {
+                            bitmapContainer.AddNoise(ArgbChannels.Blue);
+                        }
                         bitmapContainer.Bitmap.Save(filename, ImageFormat.Png);
-                    };
-
-                    await tsk.Invoke();
+                    });
                     await res.Download(filename);
                 }
                 catch (Exception e)
@@ -82,15 +85,14 @@ namespace StegoService.Web
                 {
                     string text = String.Empty;
                     var stream = req.GetBodyStream();
-                    Func<Task> tsk = async () =>
+                    await Task.Run(() =>
                     {
                         var parser = new MultipartFormDataParser(stream);
                         var file = parser.Files[0];
                         var bitmap = new Bitmap(file.Data);
                         var bitmapContainer = new BitmapContainer(bitmap);
                         text = bitmapContainer.ExtractStego();
-                    };
-                    await tsk.Invoke();
+                    });
                     await res.SendString(text);
                 }
                 catch (Exception e)

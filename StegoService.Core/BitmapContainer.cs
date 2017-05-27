@@ -7,10 +7,13 @@ using System.Collections.Generic;
 
 using StegoService.Core.Helpers;
 
+using Medallion;
+
 namespace StegoService.Core.BitmapContainer
 {
-    public enum RgbChannels
+    public enum ArgbChannels
     {
+        Alpha,
         Red,
         Green,
         Blue
@@ -18,45 +21,41 @@ namespace StegoService.Core.BitmapContainer
 
     public sealed class BitmapContainer
     {
-        private readonly Bitmap m_bitmap;
+        private readonly Bitmap bitmap;
 
-        private readonly int m_height;
-        private readonly int m_width;
+        private readonly int height;
+        private readonly int width;
 
-        private byte[,] m_redChannel, m_greenChannel, m_blueChannel;
+        private byte[,] alphaChannel, redChannel, greenChannel, blueChannel;
 
         public Bitmap Bitmap
         {
-            get { return m_bitmap; }
+            get { return bitmap; }
         }
 
         public int Height
         {
-            get { return m_height; }
+            get { return height; }
         }
 
         public int Width
         {
-            get { return m_width; }
+            get { return width; }
         }
 
         public BitmapContainer(Bitmap bitmap)
         {
-            m_bitmap = new Bitmap(bitmap);
+            this.bitmap = bitmap;
 
-            m_height = m_bitmap.Height;
-            m_width = m_bitmap.Width;
+            height = this.bitmap.Height;
+            width = this.bitmap.Width;
 
-            m_redChannel = new byte[m_height, m_width];
-            m_greenChannel = new byte[m_height, m_width];
-            m_blueChannel = new byte[m_height, m_width];
+            alphaChannel = new byte[height, width];
+            redChannel   = new byte[height, width];
+            greenChannel = new byte[height, width];
+            blueChannel  = new byte[height, width];
 
             SplitColors();
-        }
-
-        public void ResetColor(RgbChannels channel)
-        {
-            SplitColor(channel);
         }
 
         public void ResetColors()
@@ -64,113 +63,107 @@ namespace StegoService.Core.BitmapContainer
             SplitColors();
         }
 
-        private void SplitColor(RgbChannels channel)
-        {
-            for (int i = 0; i < m_height; i++)
-            {
-                for (int j = 0; j < m_width; j++)
-                {
-                    var color = m_bitmap.GetPixel(j, i);
-                    switch (channel)
-                    {
-                        case RgbChannels.Red:
-                            m_redChannel[i, j] = color.R;
-                            break;
-                        case RgbChannels.Green:
-                            m_greenChannel[i, j] = color.G;
-                            break;
-                        case RgbChannels.Blue:
-                            m_blueChannel[i, j] = color.B;
-                            break;
-                    }
-                }
-            }
-        }
-
         private void SplitColors()
         {
-            for (int i = 0; i < m_height; i++)
+            for (int i = 0; i < height; i++)
             {
-                for (int j = 0; j < m_width; j++)
+                for (int j = 0; j < width; j++)
                 {
-                    var color = m_bitmap.GetPixel(j, i);
-                    m_redChannel[i, j] = color.R;
-                    m_greenChannel[i, j] = color.G;
-                    m_blueChannel[i, j] = color.B;
+                    var color = bitmap.GetPixel(j, i);
+
+                    alphaChannel[i, j] = color.A;
+                    redChannel[i, j]   = color.R;
+                    greenChannel[i, j] = color.G;
+                    blueChannel[i, j]  = color.B;
                 }
             }
         }
 
         public void BuildFromColors()
         {
-            for (int i = 0; i < m_height; i++)
+            for (int i = 0; i < height; i++)
             {
-                for (int j = 0; j < m_width; j++)
+                for (int j = 0; j < width; j++)
                 {
-                    var color = Color.FromArgb(m_redChannel[i, j], m_greenChannel[i, j], m_blueChannel[i, j]);
-                    m_bitmap.SetPixel(j, i, color);
+                    var color = Color.FromArgb(alphaChannel[i, j], redChannel[i, j], greenChannel[i, j], blueChannel[i, j]);
+                    bitmap.SetPixel(j, i, color);
                 }
             }
         }
 
-
-        public void InsertStego(string text)
+        public void EmbedStego(string text)
         {
-            if (!TryInsertStego(text))
+            if (!TryEmbedString(text))
             {
                 throw new InvalidOperationException("Not enough space.");
             }
         }
 
-        public bool TryInsertStego(string text)
+        public bool TryEmbedBits(byte[] bytes)
         {
-            var bitArray = text.GetBits();
-            var blocks = MatrixHelpers.ToBlocks(m_blueChannel);
-            var transformedBlocks = blocks
-                .Select(block => block.DCT())
-                .ToArray();
+            return TryEmbedBits(bytes, bytes.Length * 8);
+        }
+
+        public bool TryEmbedBits(byte[] bytes, int bitCount)
+        {
+            var bitArray = new BitArray(bytes);
+
+            var blocks = BlocksHelpers.ToBlocksParallel(blueChannel);
+
+            var transformedBlocks = BlocksHelpers.TransformParallel(blocks);
+
             var suitableBlocks = transformedBlocks
                 .Where(block => block.IsSuitable())
                 .ToArray();
-            if (suitableBlocks.Length < bitArray.Count)
+
+            if (suitableBlocks.Length < bitCount)
             {
                 return false;
             }
+
             int i = 0;
+
             foreach (var block in suitableBlocks)
             {
-                if (i == bitArray.Count)
+                if (i == bitCount)
                 {
                     break;
                 }
-                else if (block.TestInsertableness(bitArray[i]))
+                else if (block.TestEmbeddableness(bitArray[i]))
                 {
-                    block.InsertBit(bitArray[i]);
+                    block.EmbedBit(bitArray[i]);
                     i++;
                 }
                 else
                 {
-                    block.InsertBit(bitArray[i]);
+                    block.EmbedBit(bitArray[i]);
                 }
             }
-            if (i != bitArray.Count)
+
+            if (i != bitCount)
             {
                 return false;
             }
-            var blocks2 = transformedBlocks
-                .Select(block => block.InverseDCT())
-                .ToArray();
-            MatrixHelpers.FillMatrix(m_blueChannel, blocks2);
+
+            blocks = BlocksHelpers.ReverseTransformParallel(transformedBlocks);
+
+            BlocksHelpers.FillMatrixParallel(blueChannel, blocks);
             BuildFromColors();
             return true;
         }
 
+        public bool TryEmbedString(string text)
+        {
+            var strBytes = Encoding.UTF8.GetBytes(text + '\0');
+            return TryEmbedBits(strBytes, strBytes.Length * 8);
+        }
+        
         public string ExtractStego()
         {
-            var blocks = MatrixHelpers.ToBlocks(m_blueChannel);
-            var transformedBlocks = blocks
-                .Select(block => block.DCT())
-                .ToArray();
+            var blocks = BlocksHelpers.ToBlocksParallel(blueChannel);
+
+            var transformedBlocks = BlocksHelpers.TransformParallel(blocks);
+
             var suitableBlocks = transformedBlocks
                 .Where(block => block.IsSuitable());            
             var byteList = new List<byte>();
@@ -181,11 +174,11 @@ namespace StegoService.Core.BitmapContainer
                 bool bit;
                 if (block.TryExtractBit(out bit))
                 {
-                    bitArray.Set(bitCount, bit);
+                    bitArray[bitCount] = bit;
                     bitCount++;
                     if (bitCount == 8)
                     {
-                        var byteArray = bitArray.ToByteArray();
+                        var byteArray = bitArray.ToBytes();
                         if (byteArray[0] == 0)
                             break;
                         bitCount = 0;
@@ -194,6 +187,46 @@ namespace StegoService.Core.BitmapContainer
                 }
             }
             return Encoding.UTF8.GetString(byteList.ToArray());
+        }
+
+        public void AddNoise(ArgbChannels channel)
+        {
+            var random = new Random();
+
+            byte[,] matrix = null;
+
+            switch (channel)
+            {
+                case ArgbChannels.Alpha:
+                    matrix = alphaChannel;
+                    break;
+                case ArgbChannels.Red:
+                    matrix = redChannel;
+                    break;
+                case ArgbChannels.Green:
+                    matrix = greenChannel;
+                    break;
+                case ArgbChannels.Blue:
+                    matrix = blueChannel;
+                    break;
+            }
+
+            for (int i = 0; i < height; i++)
+            {
+                for (int j = 0; j < width; j++)
+                {
+                    byte mod = (byte)(1 + random.NextGaussian());
+
+                    if (matrix[i, j] + mod > 255)
+                    {
+                        matrix[i, j] -= mod;
+                    }
+                    else
+                    {
+                        matrix[i, j] += mod;
+                    }                            
+                }
+            }
         }
     }
 }

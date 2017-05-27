@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Text;
 using System.Collections;
+using System.Threading.Tasks;
 
 using StegoService.Core.Blocks;
 
@@ -16,18 +16,13 @@ namespace StegoService.Core.Helpers
 
     public static class BitArrayHelpers
     {
-        public static BitArray GetBits(this string text)
-        {
-            var strBytes = Encoding.UTF8.GetBytes(text + '\0');
-            var bitArray = new BitArray(strBytes);
-            return bitArray;
-        }
-
-        public static byte[] ToByteArray(this BitArray bitArray)
+        public static byte[] ToBytes(this BitArray bitArray)
         {
             int length = (bitArray.Count - 1) / 8 + 1;
             var byteArray = new byte[length];
+
             bitArray.CopyTo(byteArray, 0);
+
             return byteArray;
         }
     }
@@ -76,76 +71,102 @@ namespace StegoService.Core.Helpers
         }
     }
 
-    public static class MatrixHelpers
+    public static class BlocksHelpers
     {
-        public static ByteBlock[] ToBlocks(byte[,] matrix)
+        public static ByteBlock[] ToBlocksParallel(byte[,] matrix)
         {
             int x = (matrix.GetLength(1) / ByteBlock.Size) * ByteBlock.Size;
             int y = (matrix.GetLength(0) / ByteBlock.Size) * ByteBlock.Size;
+
             int blocksCount = (x * y) / (ByteBlock.Size * ByteBlock.Size);
+
             var blocks = new ByteBlock[blocksCount];
-            int x1 = 0;
-            int y1 = 0;
-            for (int i = 0; i < blocksCount; i++)
+
+            Parallel.For(0, blocksCount, (index) =>
             {
-                x1 = (ByteBlock.Size * i) % x;
-                blocks[i] = ByteBlock.FromMatrix<ByteBlock>(matrix, x1, y1);
-                if (x1 + ByteBlock.Size == x)
-                {
-                    y1 += ByteBlock.Size;
-                }
-            }
+                int x1 = (ByteBlock.Size * index % x);
+                int y1 = (ByteBlock.Size * index / x) * ByteBlock.Size;
+
+                blocks[index] = new ByteBlock(matrix, x1, y1);
+            });
+
             return blocks;
         }
 
-        public static byte[,] ToMatrix(ByteBlock[] blocks, int width, int height)
+        public static byte[,] ToMatrixParallel(ByteBlock[] blocks, int width, int height)
         {
             var matrix = new byte[height, width];
+
             int x = (width / ByteBlock.Size) * ByteBlock.Size;
             int y = (height / ByteBlock.Size) * ByteBlock.Size;
+
             int blocksCount = (x * y) / (ByteBlock.Size * ByteBlock.Size);
-            int x1 = 0;
-            int y1 = 0;
-            for (int k = 0; k < blocksCount; k++)
+
+            Parallel.For(0, blocksCount, (index) =>
             {
-                x1 = (ByteBlock.Size * k) % x;
+                int x1 = (ByteBlock.Size * index % x);
+                int y1 = (ByteBlock.Size * index / x) * ByteBlock.Size;
+
                 for (int i = 0; i < ByteBlock.Size; i++)
                 {
                     for (int j = 0; j < ByteBlock.Size; j++)
                     {
-                        matrix[i + y1, j + x1] = blocks[k][i, j];
+                        matrix[i + y1, j + x1] = blocks[index][i, j];
                     }
                 }
-                if (x1 + ByteBlock.Size == x)
-                {
-                    y1 += ByteBlock.Size;
-                }
-            }
+            });
+
             return matrix;
         }
 
-        public static void FillMatrix(byte[,] matrix, ByteBlock[] blocks)
+        public static void FillMatrixParallel(byte[,] matrix, ByteBlock[] blocks)
         {
             int x = (matrix.GetLength(1) / ByteBlock.Size) * ByteBlock.Size;
             int y = (matrix.GetLength(0) / ByteBlock.Size) * ByteBlock.Size;
+
             int blocksCount = (x * y) / (ByteBlock.Size * ByteBlock.Size);
-            int x1 = 0;
-            int y1 = 0;
-            for (int k = 0; k < blocksCount; k++)
+
+            Parallel.For(0, blocksCount, (index) =>
             {
-                x1 = (ByteBlock.Size * k) % x;
+                int x1 = (ByteBlock.Size * index % x);
+                int y1 = (ByteBlock.Size * index / x) * ByteBlock.Size;
+
                 for (int i = 0; i < ByteBlock.Size; i++)
                 {
                     for (int j = 0; j < ByteBlock.Size; j++)
                     {
-                        matrix[i + y1, j + x1] = blocks[k][i, j];
+                        matrix[i + y1, j + x1] = blocks[index][i, j];
                     }
                 }
-                if (x1 + ByteBlock.Size == x)
-                {
-                    y1 += ByteBlock.Size;
-                }
-            }
+            });
+        }
+
+        public static DctBlock[] TransformParallel(ByteBlock[] blocks)
+        {
+            int blockCount = blocks.Length;
+
+            var transformedBlocks = new DctBlock[blockCount];
+
+            Parallel.For(0, blockCount, (index) =>
+            {
+                transformedBlocks[index] = blocks[index].MakeDct();
+            });
+
+            return transformedBlocks;
+        }
+
+        public static ByteBlock[] ReverseTransformParallel(DctBlock[] transformedBlocks)
+        {
+            int blockCount = transformedBlocks.Length;
+
+            var blocks = new ByteBlock[blockCount];
+
+            Parallel.For(0, blockCount, (index) =>
+            {
+                blocks[index] = transformedBlocks[index].MakeInverseDct();
+            });
+
+            return blocks;
         }
     }
 }

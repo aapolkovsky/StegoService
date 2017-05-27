@@ -21,23 +21,25 @@ namespace BenhamStego
         private static string textFile = null;
         private static string outputFile = null;
         private static bool extract = false;
-        private static bool insert = false;
+        private static bool embed = false;
+        private static bool noise = false;
         private static bool help = false;
 
         public static OptionSet options = new OptionSet
         {
-            { "i|insert",    "Insert the message.",     (flag) => insert = flag != null },
-            { "x|extract",   "Extract the message.",    (flag) => extract = flag != null },
-            { "h|help",      "Print this message.",     (flag) => help = flag != null },
-            { "f|file=",     "Input file.",             (string str) => inputFile = str },
-            { "o|output=",   "Output file.",            (string str) => outputFile = str },
-            { "t|txt=",      "File with text.",         (string str) => textFile = str }
+            { "e|embed",    "Embed the message.",      (flag) => embed = flag != null },
+            { "x|extract",  "Extract the message.",    (flag) => extract = flag != null },
+            { "n|noise",    "Add noise.",              (flag) => noise = flag != null },
+            { "h|help",     "Print this message.",     (flag) => help = flag != null },
+            { "f|file=",    "Input file.",             (string str) => inputFile = str },
+            { "o|output=",  "Output file.",            (string str) => outputFile = str },
+            { "t|txt=",     "File with text.",         (string str) => textFile = str }
         };
 
         public void PrintHelp()
         {
             Console.WriteLine("USAGE:");
-            Console.WriteLine("  stego.exe -if image.bmp -t text.txt  -o result.bmp");
+            Console.WriteLine("  stego.exe -ef image.bmp [-n] -t text.txt  -o result.bmp");
             Console.WriteLine("            -xf image.bmp -o result.txt");
             Console.WriteLine();
             options.WriteOptionDescriptions(Console.Out);
@@ -52,7 +54,7 @@ namespace BenhamStego
 
         public void Run()
         {
-            if ((extract == insert) || help)
+            if ((extract == embed) || help || extract && noise)
             {
                 PrintHelp();
             }
@@ -71,18 +73,22 @@ namespace BenhamStego
                             streamWriter.Write(text);
                         }
                     }
-                    else if (insert)
+                    else if (embed)
                     {
                         var fileStream = File.Open(textFile, FileMode.Open, FileAccess.Read, FileShare.Read);
                         var streamReader = new StreamReader(fileStream, Encoding.UTF8);
                         var text = streamReader.ReadToEnd();
-                        bitmapContainer.InsertStego(text);
+                        if (noise)
+                        {
+                            bitmapContainer.AddNoise(ArgbChannels.Blue);
+                        }
+                        bitmapContainer.EmbedStego(text);
                         bitmapContainer.Bitmap.Save(outputFile);
                     }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Exceptione: " + e.Message);
+                    Console.WriteLine("Exception: " + e.Message);
                     Console.WriteLine();
                     PrintHelp();
                 }
