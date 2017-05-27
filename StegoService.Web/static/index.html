@@ -99,7 +99,7 @@
     <script type="text/javascript">
         var form = document.forms.extractForm;
         form.addEventListener("submit", (e) => {
-            var formData = new FormData(form);
+            var formData = new FormData(document.forms.extractForm);
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/extract', true);
             xhr.send(formData);
