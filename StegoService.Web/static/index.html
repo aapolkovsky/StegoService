@@ -99,14 +99,15 @@
     <script type="text/javascript">
         var form = document.forms.extractForm;
         form.addEventListener("submit", (e) => {
-            var formData = new FormData(document.forms.extractForm);
+            e.preventDefault();
+            form = document.forms.extractForm;
+            var formData = new FormData(form);
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/extract', true);
             xhr.send(formData);
             xhr.onload = function () {
-                form.elements.text.innerText = this.responseText;
+                form.elements.text.value = this.responseText;
             }
-            e.preventDefault();
         });
     </script>
 </body>
